@@ -129,11 +129,10 @@ AllStatuses
 | order by SortOrder asc
 ```
 
-### Deduplicated top unreviewed/new vulnerability types
+### Deduplicated top unreviewed vulnerability types
 
 Use this query when the workbook needs the top vulnerability types by severity,
-limited to unique `UNREVIEWED` or `NEW` vulnerabilities discovered within the
-past year.
+limited to unique `UNREVIEWED` vulnerabilities discovered within the past year.
 
 ```kql
 let Deduped =
@@ -151,7 +150,6 @@ Rapid7InsightAppSecV1_CL
 | extend
     Status = case(
         StatusRaw in ("UNREVIEWED", "UNREVIEWED_OPEN", "OPEN"), "UNREVIEWED",
-        StatusRaw == "NEW", "NEW",
         StatusRaw
     ),
     VulnerabilityIDRaw = case(
@@ -167,7 +165,7 @@ Rapid7InsightAppSecV1_CL
     VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw)),
     VulnerabilityType = trim(@"[\s]+", iff(isnotempty(AttackType), AttackType, ModuleName))
 | where Vuln_lastDiscovered >= ago(365d)
-| where Status in ("UNREVIEWED", "NEW")
+| where Status == "UNREVIEWED"
 | where isnotempty(VulnerabilityID)
 | where isnotempty(VulnerabilityType)
 | summarize arg_max(TimeGenerated, *) by VulnerabilityID;
