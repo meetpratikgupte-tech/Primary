@@ -214,10 +214,10 @@ Rapid7InsightAppSecV1_CL
     Status = trim(@"[\s]+", Status),
     VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
 | where Vuln_lastDiscovered >= ago(180d)
-| where Severity == "CRITICAL"
 | where isnotempty(VulnerabilityID)
 | summarize arg_max(TimeGenerated, *) by VulnerabilityID;
 LatestByVulnerability
+| where Severity == "CRITICAL"
 | where Status == "UNREVIEWED"
 | summarize Critical = count()
 ```
@@ -261,10 +261,10 @@ Rapid7InsightAppSecV1_CL
     Status = trim(@"[\s]+", Status),
     VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
 | where Vuln_lastDiscovered >= ago(180d)
-| where Severity == "HIGH"
 | where isnotempty(VulnerabilityID)
 | summarize arg_max(TimeGenerated, *) by VulnerabilityID;
 LatestByVulnerability
+| where Severity == "HIGH"
 | where Status == "UNREVIEWED"
 | summarize High = count()
 ```
