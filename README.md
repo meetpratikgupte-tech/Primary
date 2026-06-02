@@ -222,6 +222,53 @@ LatestByVulnerability
 | summarize Critical = count()
 ```
 
+### Deduplicated unreviewed high severity count
+
+Use this query when the workbook needs the web application vulnerability
+severity tile for unique high vulnerabilities whose latest status is
+`UNREVIEWED`.
+
+```kql
+let LatestByVulnerability =
+Rapid7InsightAppSecV1_CL
+| where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
+| extend
+    Severity = toupper(trim(@"[\s]+", tostring(column_ifexists("Severity_s", "")))),
+    StatusRaw = toupper(trim(@"[\s]+", case(
+        isnotempty(tostring(column_ifexists("Vuln_status_s", ""))), tostring(column_ifexists("Vuln_status_s", "")),
+        isnotempty(tostring(column_ifexists("Status_s", ""))), tostring(column_ifexists("Status_s", "")),
+        tostring(column_ifexists("VulnerabilityStatus_s", ""))
+    ))),
+    VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
+    VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
+    VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
+    VulnLastDiscoveredString = tostring(column_ifexists("Vuln_lastDiscovered_s", ""))
+| extend
+    Status = case(
+        StatusRaw in ("UNREVIEWED", "UNREVIEWED_OPEN", "OPEN"), "UNREVIEWED",
+        StatusRaw
+    ),
+    VulnerabilityIDRaw = case(
+        isnotempty(VulnUuidGuid), VulnUuidGuid,
+        isnotempty(VulnUuidString), VulnUuidString,
+        ""
+    ),
+    Vuln_lastDiscovered = coalesce(
+        VulnLastDiscoveredDate,
+        todatetime(VulnLastDiscoveredString)
+    )
+| extend
+    Status = trim(@"[\s]+", Status),
+    VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
+| where Vuln_lastDiscovered >= ago(180d)
+| where Severity == "HIGH"
+| where isnotempty(VulnerabilityID)
+| summarize arg_max(TimeGenerated, *) by VulnerabilityID;
+LatestByVulnerability
+| where Status == "UNREVIEWED"
+| summarize High = count()
+```
+
 ### Normalize InsightAppSec findings
 
 Start workbook queries with a normalized source block so each visual can reuse
