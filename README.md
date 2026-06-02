@@ -175,6 +175,63 @@ Deduped
 | take 20
 ```
 
+### Deduplicated V2 top unreviewed applications
+
+Use this query when the workbook needs the top applications by unique
+`UNREVIEWED` vulnerabilities from `Rapid7InsightAppSecV2_CL`.
+
+```kql
+let LatestByAppVulnerability =
+Rapid7InsightAppSecV2_CL
+| where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
+| extend
+    AppName = trim(@"[\s]+", tostring(column_ifexists("AppName_s", ""))),
+    AppID = tostring(column_ifexists("AppUuid_g", column_ifexists("AppUuid_s", ""))),
+    StatusRaw = toupper(trim(@"[\s]+", case(
+        isnotempty(tostring(column_ifexists("Vuln_status_s", ""))), tostring(column_ifexists("Vuln_status_s", "")),
+        isnotempty(tostring(column_ifexists("Status_s", ""))), tostring(column_ifexists("Status_s", "")),
+        tostring(column_ifexists("VulnerabilityStatus_s", ""))
+    ))),
+    VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
+    VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
+    VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
+    VulnLastDiscoveredString = tostring(column_ifexists("Vuln_lastDiscovered_s", ""))
+| extend
+    Status = case(
+        StatusRaw in ("UNREVIEWED", "UNREVIEWED_OPEN", "OPEN"), "UNREVIEWED",
+        StatusRaw
+    ),
+    VulnerabilityIDRaw = case(
+        isnotempty(VulnUuidGuid), VulnUuidGuid,
+        isnotempty(VulnUuidString), VulnUuidString,
+        ""
+    ),
+    Vuln_lastDiscovered = coalesce(
+        VulnLastDiscoveredDate,
+        todatetime(VulnLastDiscoveredString)
+    )
+| extend
+    AppKey = iff(isnotempty(AppID), toupper(trim(@"[\s]+", AppID)), toupper(AppName)),
+    VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
+| where Vuln_lastDiscovered >= ago(30d)
+| where isnotempty(AppName)
+| where AppName !in~ ("other", "others", "unknown", "not available", "n/a", "null")
+| where isnotempty(AppKey)
+| where isnotempty(VulnerabilityID)
+| summarize arg_max(TimeGenerated, *) by AppKey, VulnerabilityID;
+let TopApps =
+LatestByAppVulnerability
+| where Status == "UNREVIEWED"
+| summarize
+    AppName = any(AppName),
+    TotalVulnerabilities = count_distinct(VulnerabilityID)
+    by AppKey
+| project AppName, TotalVulnerabilities
+| top 10 by TotalVulnerabilities desc;
+TopApps
+| order by TotalVulnerabilities asc
+```
+
 ### Deduplicated unreviewed critical severity count
 
 Use this query when the workbook needs the web application vulnerability
