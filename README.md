@@ -178,15 +178,20 @@ Deduped
 ### Deduplicated unreviewed critical severity count
 
 Use this query when the workbook needs the web application vulnerability
-severity tile for unique `UNREVIEWED` critical vulnerabilities.
+severity tile for unique critical vulnerabilities whose latest status is
+`UNREVIEWED`.
 
 ```kql
-let Deduped =
+let LatestByVulnerability =
 Rapid7InsightAppSecV1_CL
 | where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
 | extend
     Severity = toupper(trim(@"[\s]+", tostring(column_ifexists("Severity_s", "")))),
-    StatusRaw = toupper(trim(@"[\s]+", tostring(column_ifexists("Status_s", "")))),
+    StatusRaw = toupper(trim(@"[\s]+", case(
+        isnotempty(tostring(column_ifexists("Vuln_status_s", ""))), tostring(column_ifexists("Vuln_status_s", "")),
+        isnotempty(tostring(column_ifexists("Status_s", ""))), tostring(column_ifexists("Status_s", "")),
+        tostring(column_ifexists("VulnerabilityStatus_s", ""))
+    ))),
     VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
     VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
     VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
@@ -205,13 +210,15 @@ Rapid7InsightAppSecV1_CL
         VulnLastDiscoveredDate,
         todatetime(VulnLastDiscoveredString)
     )
-| extend VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
+| extend
+    Status = trim(@"[\s]+", Status),
+    VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
 | where Vuln_lastDiscovered >= ago(180d)
 | where Severity == "CRITICAL"
-| where Status == "UNREVIEWED"
 | where isnotempty(VulnerabilityID)
 | summarize arg_max(TimeGenerated, *) by VulnerabilityID;
-Deduped
+LatestByVulnerability
+| where Status == "UNREVIEWED"
 | summarize Critical = count()
 ```
 
