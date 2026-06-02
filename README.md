@@ -65,6 +65,70 @@ Deduped
 | order by Critical desc, High desc, Medium desc
 ```
 
+### Deduplicated one-year status counts
+
+Use this query when the workbook needs a count by InsightAppSec status with no
+duplicate vulnerability IDs. The `VulnerabilityID` value is normalized before
+deduplication so GUID/string casing or whitespace differences do not create
+separate rows.
+
+```kql
+let AllStatuses = datatable(Status:string, SortOrder:int)
+[
+    "UNREVIEWED", 1,
+    "IGNORED", 2,
+    "FALSE_POSITIVE", 3,
+    "VERIFIED", 4,
+    "REMEDIATED", 5,
+    "DUPLICATE", 6,
+    "NEW", 7
+];
+let Deduped =
+Rapid7InsightAppSecV1_CL
+| where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
+| extend
+    StatusRaw = toupper(trim(@"[\s]+", tostring(column_ifexists("Status_s", "")))),
+    VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
+    VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
+    VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
+    VulnLastDiscoveredString = tostring(column_ifexists("Vuln_lastDiscovered_s", ""))
+| extend
+    Status = case(
+        StatusRaw in ("FALSE POSITIVE", "FALSE-POSITIVE", "FALSE_POSITIVE"), "FALSE_POSITIVE",
+        StatusRaw in ("UNREVIEWED", "UNREVIEWED_OPEN", "OPEN"), "UNREVIEWED",
+        StatusRaw == "IGNORED", "IGNORED",
+        StatusRaw == "VERIFIED", "VERIFIED",
+        StatusRaw == "REMEDIATED", "REMEDIATED",
+        StatusRaw == "DUPLICATE", "DUPLICATE",
+        StatusRaw == "NEW", "NEW",
+        StatusRaw
+    ),
+    VulnerabilityIDRaw = case(
+        isnotempty(VulnUuidGuid), VulnUuidGuid,
+        isnotempty(VulnUuidString), VulnUuidString,
+        ""
+    ),
+    Vuln_lastDiscovered = coalesce(
+        VulnLastDiscoveredDate,
+        todatetime(VulnLastDiscoveredString)
+    )
+| extend VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw))
+| where Vuln_lastDiscovered >= ago(365d)
+| where isnotempty(VulnerabilityID)
+| where Status in ("UNREVIEWED", "IGNORED", "FALSE_POSITIVE", "VERIFIED", "REMEDIATED", "DUPLICATE", "NEW")
+| summarize arg_max(TimeGenerated, *) by VulnerabilityID;
+let Counts =
+Deduped
+| summarize Count = count() by Status;
+AllStatuses
+| join kind=leftouter Counts on Status
+| project
+    Status,
+    Count = coalesce(Count, 0),
+    SortOrder
+| order by SortOrder asc
+```
+
 ### Normalize InsightAppSec findings
 
 Start workbook queries with a normalized source block so each visual can reuse
