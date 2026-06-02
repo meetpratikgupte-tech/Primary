@@ -165,12 +165,12 @@ Rapid7InsightAppSecV1_CL
     VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw)),
     VulnerabilityType = trim(@"[\s]+", iff(isnotempty(AttackType), AttackType, ModuleName))
 | where Vuln_lastDiscovered >= ago(365d)
-| where Status == "UNREVIEWED"
 | where isnotempty(VulnerabilityID)
 | where isnotempty(VulnerabilityType)
 | summarize arg_max(TimeGenerated, *) by VulnerabilityID;
 Deduped
-| summarize Count = count() by VulnerabilityType, Severity
+| where Status == "UNREVIEWED"
+| summarize Count = count_distinct(VulnerabilityID) by VulnerabilityType, Severity
 | order by Count desc
 | take 20
 ```
