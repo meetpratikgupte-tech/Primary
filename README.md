@@ -6,6 +6,65 @@ Use these snippets when updating a Microsoft Sentinel or Azure Workbook that
 renders Rapid7 InsightAppSec findings from a custom log table such as
 `InsightAppSec_CL`.
 
+### Deduplicated one-year unreviewed/new rollup
+
+Use this query for the `Rapid7InsightAppSecV1_CL` workbook rollup when you only
+want unique vulnerabilities that are `UNREVIEWED` or `NEW` and were last
+discovered within the past year.
+
+```kql
+let Deduped =
+Rapid7InsightAppSecV1_CL
+| where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
+| extend
+    AppDescriptionOriginal = tostring(column_ifexists("AppDescription_s", "")),
+    SeverityRaw = tostring(column_ifexists("Severity_s", "")),
+    StatusRaw = case(
+        isnotempty(tostring(column_ifexists("Vuln_status_s", ""))), tostring(column_ifexists("Vuln_status_s", "")),
+        isnotempty(tostring(column_ifexists("Status_s", ""))), tostring(column_ifexists("Status_s", "")),
+        tostring(column_ifexists("VulnerabilityStatus_s", ""))
+    ),
+    VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
+    VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
+    VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
+    VulnLastDiscoveredString = tostring(column_ifexists("Vuln_lastDiscovered_s", ""))
+| extend
+    AppDescription = trim(@"[\s]+", AppDescriptionOriginal),
+    AppDescriptionKey = toupper(trim(@"[\s]+", AppDescriptionOriginal)),
+    Severity = toupper(trim(@"[\s]+", SeverityRaw)),
+    Status = toupper(trim(@"[\s]+", StatusRaw)),
+    VulnerabilityID = case(
+        isnotempty(VulnUuidGuid), VulnUuidGuid,
+        isnotempty(VulnUuidString), VulnUuidString,
+        ""
+    ),
+    Vuln_lastDiscovered = coalesce(
+        VulnLastDiscoveredDate,
+        todatetime(VulnLastDiscoveredString)
+    )
+| where Vuln_lastDiscovered >= ago(365d)
+| where Severity in ("CRITICAL", "HIGH", "MEDIUM")
+| where Status in ("UNREVIEWED", "NEW")
+| where isnotempty(AppDescriptionKey)
+| where isnotempty(VulnerabilityID)
+| summarize arg_max(TimeGenerated, *) by AppDescriptionKey, VulnerabilityID;
+Deduped
+| summarize
+    AppDescription = any(AppDescription),
+    Critical = countif(Severity == "CRITICAL"),
+    High = countif(Severity == "HIGH"),
+    Medium = countif(Severity == "MEDIUM"),
+    Total = count()
+    by AppDescriptionKey
+| project
+    AppDescription,
+    Critical,
+    High,
+    Medium,
+    Total
+| order by Critical desc, High desc, Medium desc
+```
+
 ### Normalize InsightAppSec findings
 
 Start workbook queries with a normalized source block so each visual can reuse
