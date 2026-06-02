@@ -129,6 +129,54 @@ AllStatuses
 | order by SortOrder asc
 ```
 
+### Deduplicated top unreviewed/new vulnerability types
+
+Use this query when the workbook needs the top vulnerability types by severity,
+limited to unique `UNREVIEWED` or `NEW` vulnerabilities discovered within the
+past year.
+
+```kql
+let Deduped =
+Rapid7InsightAppSecV1_CL
+| where column_ifexists("RecordType_s", "DATA") != "SCHEMA_SEED"
+| extend
+    AttackType = tostring(column_ifexists("AttackType_s", "")),
+    ModuleName = tostring(column_ifexists("ModuleName_s", "")),
+    Severity = toupper(trim(@"[\s]+", tostring(column_ifexists("Severity_s", "")))),
+    StatusRaw = toupper(trim(@"[\s]+", tostring(column_ifexists("Status_s", "")))),
+    VulnUuidGuid = tostring(column_ifexists("Vuln_uuid_g", "")),
+    VulnUuidString = tostring(column_ifexists("Vuln_uuid_s", "")),
+    VulnLastDiscoveredDate = column_ifexists("Vuln_lastDiscovered_t", datetime(null)),
+    VulnLastDiscoveredString = tostring(column_ifexists("Vuln_lastDiscovered_s", ""))
+| extend
+    Status = case(
+        StatusRaw in ("UNREVIEWED", "UNREVIEWED_OPEN", "OPEN"), "UNREVIEWED",
+        StatusRaw == "NEW", "NEW",
+        StatusRaw
+    ),
+    VulnerabilityIDRaw = case(
+        isnotempty(VulnUuidGuid), VulnUuidGuid,
+        isnotempty(VulnUuidString), VulnUuidString,
+        ""
+    ),
+    Vuln_lastDiscovered = coalesce(
+        VulnLastDiscoveredDate,
+        todatetime(VulnLastDiscoveredString)
+    )
+| extend
+    VulnerabilityID = toupper(trim(@"[\s]+", VulnerabilityIDRaw)),
+    VulnerabilityType = trim(@"[\s]+", iff(isnotempty(AttackType), AttackType, ModuleName))
+| where Vuln_lastDiscovered >= ago(365d)
+| where Status in ("UNREVIEWED", "NEW")
+| where isnotempty(VulnerabilityID)
+| where isnotempty(VulnerabilityType)
+| summarize arg_max(TimeGenerated, *) by VulnerabilityID;
+Deduped
+| summarize Count = count() by VulnerabilityType, Severity
+| order by Count desc
+| take 20
+```
+
 ### Normalize InsightAppSec findings
 
 Start workbook queries with a normalized source block so each visual can reuse
