@@ -219,7 +219,7 @@ Rapid7InsightAppSecV1_CL
 LatestByVulnerability
 | where Severity == "CRITICAL"
 | where Status == "UNREVIEWED"
-| summarize Critical = count()
+| summarize Critical = count_distinct(VulnerabilityID)
 ```
 
 ### Deduplicated unreviewed high severity count
@@ -266,7 +266,7 @@ Rapid7InsightAppSecV1_CL
 LatestByVulnerability
 | where Severity == "HIGH"
 | where Status == "UNREVIEWED"
-| summarize High = count()
+| summarize High = count_distinct(VulnerabilityID)
 ```
 
 ### Normalize InsightAppSec findings
