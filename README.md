@@ -27,39 +27,58 @@ $tableName = "Rapid7InsightAppSecV2_CL"
 
 Set-AzContext -SubscriptionId $subscriptionId
 
-$tableSchema = @{
-    properties = @{
-        schema = @{
-            name = $tableName
-            columns = @(
-                @{ name = "TimeGenerated"; type = "datetime" }
-                @{ name = "RecordType_s"; type = "string" }
-                @{ name = "RawData"; type = "string" }
-                @{ name = "AppName_s"; type = "string" }
-                @{ name = "AppDescription_s"; type = "string" }
-                @{ name = "AppUuid_g"; type = "guid" }
-                @{ name = "AppUuid_s"; type = "string" }
-                @{ name = "Severity_s"; type = "string" }
-                @{ name = "Status_s"; type = "string" }
-                @{ name = "Vuln_status_s"; type = "string" }
-                @{ name = "VulnerabilityStatus_s"; type = "string" }
-                @{ name = "Vuln_uuid_g"; type = "guid" }
-                @{ name = "Vuln_uuid_s"; type = "string" }
-                @{ name = "Vuln_lastDiscovered_t"; type = "datetime" }
-                @{ name = "Vuln_lastDiscovered_s"; type = "string" }
-                @{ name = "AttackType_s"; type = "string" }
-                @{ name = "ModuleName_s"; type = "string" }
-                @{ name = "VulnerabilityTitle_s"; type = "string" }
-                @{ name = "Cvss_d"; type = "real" }
-                @{ name = "ScanId_s"; type = "string" }
-            )
-        }
+# Custom table names created through PowerShell/API must include the _CL suffix.
+if ($tableName -notlike "*_CL") {
+    throw "Custom Log Analytics table name must end with _CL."
+}
+
+$tablePayload = @"
+{
+  "properties": {
+    "schema": {
+      "name": "$tableName",
+      "columns": [
+        { "name": "TimeGenerated", "type": "DateTime" },
+        { "name": "RecordType_s", "type": "String" },
+        { "name": "AppName_s", "type": "String" },
+        { "name": "AppDescription_s", "type": "String" },
+        { "name": "AppUuid_g", "type": "Guid" },
+        { "name": "AppUuid_s", "type": "String" },
+        { "name": "Severity_s", "type": "String" },
+        { "name": "Status_s", "type": "String" },
+        { "name": "Vuln_status_s", "type": "String" },
+        { "name": "VulnerabilityStatus_s", "type": "String" },
+        { "name": "Vuln_uuid_g", "type": "Guid" },
+        { "name": "Vuln_uuid_s", "type": "String" },
+        { "name": "Vuln_lastDiscovered_t", "type": "DateTime" },
+        { "name": "Vuln_lastDiscovered_s", "type": "String" },
+        { "name": "AttackType_s", "type": "String" },
+        { "name": "ModuleName_s", "type": "String" },
+        { "name": "VulnerabilityTitle_s", "type": "String" },
+        { "name": "Cvss_d", "type": "Real" },
+        { "name": "ScanId_s", "type": "String" }
+      ]
     }
-} | ConvertTo-Json -Depth 10
+  }
+}
+"@
 
-$tablePath = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.OperationalInsights/workspaces/$workspaceName/tables/$tableName?api-version=2022-10-01"
+$tablePath = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.OperationalInsights/workspaces/$workspaceName/tables/$tableName?api-version=2021-12-01-preview"
 
-Invoke-AzRestMethod -Method PUT -Path $tablePath -Payload $tableSchema
+try {
+    Invoke-AzRestMethod -Method PUT -Path $tablePath -Payload $tablePayload
+    Invoke-AzRestMethod -Method GET -Path $tablePath
+}
+catch {
+    Write-Host "Failed to create or read table $tableName." -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+
+    if ($_.ErrorDetails.Message) {
+        Write-Host $_.ErrorDetails.Message -ForegroundColor Yellow
+    }
+
+    throw
+}
 ```
 
 After the table is created, confirm it exists:
