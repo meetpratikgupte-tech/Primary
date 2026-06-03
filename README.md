@@ -6,6 +6,69 @@ Use these snippets when updating a Microsoft Sentinel or Azure Workbook that
 renders Rapid7 InsightAppSec findings from a custom log table such as
 `InsightAppSec_CL`.
 
+### Create the Rapid7 InsightAppSec LAW table with PowerShell
+
+Use this Azure PowerShell script to create a Log Analytics Workspace custom
+table for Rapid7 InsightAppSec data. The schema includes the columns used by
+the workbook queries below, including status, severity, app, vulnerability ID,
+and last-discovered fields.
+
+Replace the subscription, resource group, workspace, and table name values
+before running the script in Azure Cloud Shell or an authenticated local
+PowerShell session.
+
+```powershell
+Connect-AzAccount
+
+$subscriptionId = "<subscription-id>"
+$resourceGroupName = "<resource-group-name>"
+$workspaceName = "<log-analytics-workspace-name>"
+$tableName = "Rapid7InsightAppSecV2_CL"
+
+Set-AzContext -SubscriptionId $subscriptionId
+
+$tableSchema = @{
+    properties = @{
+        schema = @{
+            name = $tableName
+            columns = @(
+                @{ name = "TimeGenerated"; type = "datetime" }
+                @{ name = "RecordType_s"; type = "string" }
+                @{ name = "RawData"; type = "string" }
+                @{ name = "AppName_s"; type = "string" }
+                @{ name = "AppDescription_s"; type = "string" }
+                @{ name = "AppUuid_g"; type = "guid" }
+                @{ name = "AppUuid_s"; type = "string" }
+                @{ name = "Severity_s"; type = "string" }
+                @{ name = "Status_s"; type = "string" }
+                @{ name = "Vuln_status_s"; type = "string" }
+                @{ name = "VulnerabilityStatus_s"; type = "string" }
+                @{ name = "Vuln_uuid_g"; type = "guid" }
+                @{ name = "Vuln_uuid_s"; type = "string" }
+                @{ name = "Vuln_lastDiscovered_t"; type = "datetime" }
+                @{ name = "Vuln_lastDiscovered_s"; type = "string" }
+                @{ name = "AttackType_s"; type = "string" }
+                @{ name = "ModuleName_s"; type = "string" }
+                @{ name = "VulnerabilityTitle_s"; type = "string" }
+                @{ name = "Cvss_d"; type = "real" }
+                @{ name = "ScanId_s"; type = "string" }
+            )
+        }
+    }
+} | ConvertTo-Json -Depth 10
+
+$tablePath = "/subscriptions/$subscriptionId/resourceGroups/$resourceGroupName/providers/Microsoft.OperationalInsights/workspaces/$workspaceName/tables/$tableName?api-version=2022-10-01"
+
+Invoke-AzRestMethod -Method PUT -Path $tablePath -Payload $tableSchema
+```
+
+After the table is created, confirm it exists:
+
+```kql
+Rapid7InsightAppSecV2_CL
+| take 10
+```
+
 ### Deduplicated one-year unreviewed/new rollup
 
 Use this query for the `Rapid7InsightAppSecV1_CL` workbook rollup when you only
