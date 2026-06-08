@@ -5,7 +5,7 @@
 Use Azure Resource Graph to list every Azure resource tagged or labeled as
 `automatedCriticality:5`.
 
-### One-off Azure CLI query
+### Preview the first 1000 matches
 
 Run this from an authenticated Azure CLI session:
 
@@ -17,9 +17,10 @@ az graph query \
   -q "$(cat queries/azure-criticality5-assets.kql)"
 ```
 
-### Export to CSV or JSON
+### Export all matches to CSV or JSON
 
-The export script wraps the same query and writes results to a file:
+The export script wraps the same query, follows Resource Graph skip tokens, and
+writes results to a file:
 
 ```bash
 bash scripts/export_azure_criticality5_assets.sh \
