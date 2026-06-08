@@ -2,8 +2,80 @@
 
 ## Extract Azure Criticality 5 assets
 
-Use Azure Resource Graph to list every Azure resource tagged or labeled as
-`automatedCriticality:5`.
+Use one of these options to list assets tagged or labeled as
+`automatedCriticality:5`. MDE Advanced Hunting covers Defender device assets;
+Azure Resource Graph covers Azure resource tags.
+
+### MDE Advanced Hunting
+
+Use `queries/mde-criticality5-assets.kql` in Microsoft Defender XDR Advanced
+Hunting to extract MDE device assets that have the `automatedCriticality:5`
+manual or dynamic tag:
+
+```kql
+let CriticalityTag = "automatedCriticality:5";
+DeviceInfo
+| where Timestamp > ago(30d)
+| extend ManualTagsText = tostring(DeviceManualTags)
+| extend DynamicTagsText = tostring(DeviceDynamicTags)
+| where ManualTagsText contains CriticalityTag
+    or DynamicTagsText contains CriticalityTag
+| summarize arg_max(Timestamp, *) by DeviceId
+| project
+    Timestamp,
+    DeviceName,
+    DeviceId,
+    AadDeviceId,
+    OSPlatform,
+    OSVersion,
+    MachineGroup,
+    OnboardingStatus,
+    SensorHealthState,
+    ExposureLevel,
+    RiskScore,
+    DeviceManualTags,
+    DeviceDynamicTags,
+    PublicIP,
+    LoggedOnUsers
+| order by DeviceName asc
+```
+
+### PowerShell export from MDE
+
+Run the MDE query through the Defender Advanced Hunting API and export the
+results:
+
+```powershell
+Install-Module Az.Accounts -Scope CurrentUser
+Connect-AzAccount
+./scripts/Export-MdeCriticality5Assets.ps1 `
+  -OutputPath mde-criticality5-assets.csv `
+  -Format Csv
+```
+
+The signed-in account or app token needs Defender XDR
+`AdvancedHunting.Read.All`. If you already have a Defender API token, pass it
+with `-AccessToken`.
+
+### PowerShell export from Azure Resource Graph
+
+Use this option when the `automatedCriticality:5` label is on Azure resource
+tags and you want to stay in PowerShell:
+
+```powershell
+Install-Module Az.ResourceGraph -Scope CurrentUser
+Connect-AzAccount
+./scripts/Export-AzureCriticality5Assets.ps1 `
+  -OutputPath azure-criticality5-assets.csv `
+  -Format Csv
+```
+
+To limit the export to specific subscriptions:
+
+```powershell
+./scripts/Export-AzureCriticality5Assets.ps1 `
+  -SubscriptionId "00000000-0000-0000-0000-000000000000","11111111-1111-1111-1111-111111111111"
+```
 
 ### Preview the first 1000 matches
 
