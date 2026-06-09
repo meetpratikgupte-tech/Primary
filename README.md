@@ -1,5 +1,24 @@
 # Primary
 
+## Consolidated Sentinel vulnerability dashboard query
+
+Use `queries/sentinel-consolidated-vulnerability-severity.kql` in Microsoft
+Sentinel Logs or a Sentinel workbook query to combine the three dashboard
+queries into one result set.
+
+The consolidated query preserves the existing classification logic and returns
+one table with these columns:
+
+| Area | Metric | Critical | High | Medium | Total |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Severity of servers | Unique CVEs | count | count | count | count |
+| Web application vulnerability severity | Unique vulnerabilities | count | count | count | count |
+| Device recommendations | Server Count | count | count | count | count |
+| Device recommendations | Recommendation Count | count | count | count | count |
+
+Use the `Critical`, `High`, and `Medium` columns directly in workbook tiles,
+grids, or charts.
+
 ## Extract Azure Criticality 5 assets
 
 Use one of these options to list assets tagged or labeled as
