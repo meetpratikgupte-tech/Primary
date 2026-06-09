@@ -1,0 +1,16 @@
+Resources
+| extend tag_automatedCriticality = tostring(tags["automatedCriticality"])
+| extend tag_values = tostring(tags)
+| where tag_automatedCriticality == "5"
+    or tag_values contains "automatedCriticality:5"
+    or tag_values contains '"automatedCriticality":"5"'
+| project
+    name,
+    type,
+    id,
+    subscriptionId,
+    resourceGroup,
+    location,
+    automatedCriticality = iff(tag_automatedCriticality == "", "automatedCriticality:5", tag_automatedCriticality),
+    tags
+| order by subscriptionId asc, resourceGroup asc, type asc, name asc

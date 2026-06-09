@@ -1,0 +1,25 @@
+let CriticalityTag = "automatedCriticality:5";
+DeviceInfo
+| where Timestamp > ago(30d)
+| extend ManualTagsText = tostring(DeviceManualTags)
+| extend DynamicTagsText = tostring(DeviceDynamicTags)
+| where ManualTagsText contains CriticalityTag
+    or DynamicTagsText contains CriticalityTag
+| summarize arg_max(Timestamp, *) by DeviceId
+| project
+    Timestamp,
+    DeviceName,
+    DeviceId,
+    AadDeviceId,
+    OSPlatform,
+    OSVersion,
+    MachineGroup,
+    OnboardingStatus,
+    SensorHealthState,
+    ExposureLevel,
+    RiskScore,
+    DeviceManualTags,
+    DeviceDynamicTags,
+    PublicIP,
+    LoggedOnUsers
+| order by DeviceName asc
